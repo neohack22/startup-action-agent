@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build / Automate / Delegate Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --nav:#161B22;--surface:#0D1117;--panel:#161B22;--card:#1C2128;--card-hover:#21262D;
+  --border:#30363D;--border-subtle:#21262D;
+  --text-primary:#E6EDF3;--text-secondary:#8B949E;--text-muted:#484F58;
+  --done:#10B981;--done-bg:rgba(16,185,129,.1);--done-border:rgba(16,185,129,.25);
+  --check:#F59E0B;--check-bg:rgba(245,158,11,.1);--check-border:rgba(245,158,11,.25);
+  --do:#3B82F6;--do-bg:rgba(59,130,246,.1);--do-border:rgba(59,130,246,.25);
+  --addinfo:#F97316;--addinfo-bg:rgba(249,115,22,.1);--addinfo-border:rgba(249,115,22,.25);
+  --build:#A78BFA;--build-bg:rgba(167,139,250,.1);--build-border:rgba(167,139,250,.25);
+  --automate:#06B6D4;--automate-bg:rgba(6,182,212,.1);--automate-border:rgba(6,182,212,.25);
+  --delegate:#10B981;--delegate-bg:rgba(16,185,129,.1);--delegate-border:rgba(16,185,129,.25);
+  --manual:#8B949E;--manual-bg:rgba(139,148,158,.08);--manual-border:rgba(139,148,158,.2);
+  --accent:#58A6FF;
+  --font-ui:'Instrument Sans',system-ui,sans-serif;--font-mono:'DM Mono',monospace;
+  --radius:6px;--radius-lg:10px;
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font-ui);background:var(--surface);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+textarea,input,select{font-family:inherit;color:inherit;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:.9rem;outline:none;transition:border-color .2s}
+textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238B949E' viewBox='0 0 16 16'%3E%3Cpath d='M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+
+.app{display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--nav);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar-brand{font-weight:700;font-size:.95rem;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.topbar-brand svg{opacity:.7}
+.topbar-tag{font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted);background:var(--card);padding:2px 7px;border-radius:3px}
+.main{display:flex;flex:1;overflow:hidden}
+.input-panel{width:420px;min-width:420px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.output-panel{flex:1;overflow-y:auto;padding:32px 36px 60px}
+.panel-header{padding:20px 24px 16px;border-bottom:1px solid var(--border-subtle)}
+.panel-header h2{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)}
+.input-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;flex:1}
+.field-group{display:flex;flex-direction:column;gap:5px}
+.field-group label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary)}
+.field-group textarea{min-height:200px;resize:vertical;line-height:1.55;font-size:.88rem}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn-primary{background:var(--do);color:#fff;font-weight:600;font-size:.9rem;padding:12px 20px;border-radius:var(--radius);transition:all .2s;width:100%}
+.btn-primary:hover{background:#2563EB;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-demo{background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-size:.84rem;padding:10px 16px;border-radius:var(--radius);transition:all .2s;width:100%;font-weight:500}
+.btn-demo:hover{border-color:var(--text-muted);color:var(--text-primary)}
+.btn-row{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:16px}
+
+/* STATES */
+.state-empty,.state-loading,.state-error{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:16px}
+.state-empty h3{font-size:1.1rem;font-weight:600;color:var(--text-secondary)}
+.state-empty p{font-size:.9rem;color:var(--text-muted);max-width:360px;line-height:1.6}
+.state-loading .loader{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.state-loading p{color:var(--text-secondary);font-size:.9rem}
+.state-error-box{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:var(--radius-lg);padding:20px 24px;max-width:400px}
+.state-error-box h3{color:#F85149;font-size:1rem;margin-bottom:6px}
+.state-error-box p{color:var(--text-secondary);font-size:.9rem;line-height:1.5}
+
+/* PIPELINE TRACKER */
+.pipeline{display:flex;gap:4px;margin-bottom:28px;flex-wrap:wrap}
+.pip-step{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius);font-size:.82rem;font-weight:600;background:var(--card);border:1px solid var(--border-subtle);color:var(--text-muted);transition:all .3s}
+.pip-step .pip-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:var(--border-subtle);color:var(--text-muted);flex-shrink:0}
+.pip-step.done{border-color:var(--done-border);color:var(--done)}
+.pip-step.done .pip-num{background:var(--done);color:#fff}
+.pip-step.active{border-color:var(--build-border);color:var(--text-primary);background:var(--build-bg)}
+.pip-step.active .pip-num{background:var(--build);color:#fff}
+.pip-step.running{border-color:var(--automate-border);color:var(--automate)}
+.pip-step.running .pip-num{background:var(--automate);color:#fff;animation:pulse 1.5s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pip-arrow{color:var(--text-muted);font-size:.7rem;margin:0 2px}
+
+/* HERO */
+.hero{border-radius:var(--radius-lg);padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;animation:fadeUp .4s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.hero::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;border-radius:4px 0 0 4px}
+.hero.build{background:linear-gradient(135deg,rgba(167,139,250,.07) 0%,rgba(167,139,250,.02) 100%);border:1px solid var(--build-border)}
+.hero.build::before{background:var(--build)}
+.hero.automate{background:linear-gradient(135deg,rgba(6,182,212,.07) 0%,rgba(6,182,212,.02) 100%);border:1px solid var(--automate-border)}
+.hero.automate::before{background:var(--automate)}
+.hero.delegate{background:linear-gradient(135deg,rgba(16,185,129,.07) 0%,rgba(16,185,129,.02) 100%);border:1px solid var(--delegate-border)}
+.hero.delegate::before{background:var(--delegate)}
+.hero-overline{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:8px}
+.hero-title{font-size:1.5rem;font-weight:700;letter-spacing:-.03em;line-height:1.3;margin-bottom:12px}
+.hero-reason{font-size:1rem;color:var(--text-secondary);line-height:1.6;margin-bottom:6px}
+.hero-badges{display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap}
+.badge{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px;border-radius:3px}
+.badge.build{background:var(--build-bg);color:var(--build);border:1px solid var(--build-border)}
+.badge.automate{background:var(--automate-bg);color:var(--automate);border:1px solid var(--automate-border)}
+.badge.delegate{background:var(--delegate-bg);color:var(--delegate);border:1px solid var(--delegate-border)}
+.badge.manual{background:var(--manual-bg);color:var(--manual);border:1px solid var(--manual-border)}
+.badge.you{background:var(--do-bg);color:var(--do);border:1px solid var(--do-border)}
+.badge.agent{background:var(--done-bg);color:var(--done);border:1px solid var(--done-border)}
+
+/* SECTION */
+.sec{margin-bottom:20px;animation:fadeUp .35s ease-out both}
+.sec-title{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec-card{background:var(--card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px 24px}
+.sec-text{font-size:1rem;color:var(--text-secondary);line-height:1.65}
+.sec-text strong{color:var(--text-primary);font-weight:600}
+.sec-instruction{font-size:1.05rem;color:var(--text-primary);line-height:1.6;font-weight:500}
+
+/* ACTION CARD (the main "your turn" card) */
+.action-card{background:var(--do-bg);border:1px solid var(--do-border);border-radius:var(--radius-lg);padding:22px 26px;margin-bottom:20px}
+.action-card h3{font-size:1.1rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.action-card h3 .badge{font-size:.65rem}
+.action-card p{font-size:1rem;color:var(--text-secondary);line-height:1.6}
+.action-card .act-btn{margin-top:14px;display:inline-flex;align-items:center;gap:6px;background:var(--build);color:#fff;font-weight:600;font-size:.9rem;padding:10px 20px;border-radius:var(--radius);transition:all .15s}
+.action-card .act-btn:hover{background:#8B5CF6;transform:translateY(-1px)}
+.action-card .act-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* STEP LOG (done items) */
+.step-log{list-style:none;display:flex;flex-direction:column;gap:12px}
+.step-item{display:flex;gap:12px;align-items:flex-start}
+.step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-icon.done{background:var(--done);color:#fff}
+.step-icon.prep{background:var(--check);color:#fff}
+.step-icon.running{background:var(--automate);color:#fff;animation:pulse 1.5s ease infinite}
+.step-icon svg{width:12px;height:12px}
+.step-body h4{font-size:.95rem;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+.step-body p{font-size:.88rem;color:var(--text-secondary);line-height:1.5}
+.step-body .step-tag{font-size:.65rem;font-family:var(--font-mono);color:var(--text-muted);background:var(--surface);padding:1px 6px;border-radius:2px;margin-left:6px}
+
+/* CONTENT VIEWER */
+.viewer{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:20px 24px;margin-top:12px;font-size:.92rem;line-height:1.7;color:var(--text-secondary);max-height:500px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+.viewer-actions{display:flex;gap:8px;margin-top:10px}
+.viewer-btn{font-size:.78rem;font-weight:500;padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);color:var(--text-secondary);transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.viewer-btn:hover{border-color:var(--text-muted);color:var(--text-primary)}
+.viewer-btn.primary{background:var(--done-bg);color:var(--done);border-color:var(--done-border)}
+.viewer-btn.primary:hover{background:var(--done);color:#fff}
+
+/* NEXT STEP BANNER */
+.next-banner{background:var(--card);border:1px solid var(--border-subtle);border-left:3px solid var(--build);border-radius:var(--radius-lg);padding:18px 22px;margin-bottom:20px}
+.next-banner h4{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--build);margin-bottom:6px}
+.next-banner p{font-size:.95rem;color:var(--text-secondary);line-height:1.55}
+
+/* COLLAPSIBLE */
+.collapse-toggle{cursor:pointer;display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-muted);margin-top:10px;padding:4px 0}
+.collapse-toggle:hover{color:var(--text-secondary)}
+.collapsed{display:none}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .main{flex-direction:column}
+  .input-panel{width:100%;min-width:0;border-right:none;border-bottom:1px solid var(--border)}
+  .output-panel{padding:20px 16px 40px}
+  .hero{padding:22px 20px}.hero-title{font-size:1.25rem}
+  .field-row{grid-template-columns:1fr}
+  .pipeline{gap:3px}.pip-step{padding:6px 10px;font-size:.75rem}
+}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Build / Automate / Delegate
+    </div>
+    <span class="topbar-tag">v2.0</span>
+  </header>
+  <div class="main">
+    <aside class="input-panel">
+      <div class="panel-header"><h2>Weekly Update</h2></div>
+      <div class="input-body">
+        <div class="field-group">
+          <label for="raw-update">Raw Update</label>
+          <textarea id="raw-update" placeholder="Paste your weekly startup update here..."></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label for="startup-name">Startup Name</label><input id="startup-name" type="text" placeholder="Optional"></div>
+          <div class="field-group"><label for="week-of">Week Of</label><input id="week-of" type="date"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label for="role-hint">Role</label><select id="role-hint"><option value="">No hint</option><option value="founder">Founder</option><option value="operator">Operator</option><option value="program_manager">Program Manager</option></select></div>
+          <div class="field-group"><label for="extra-context">Extra Context</label><input id="extra-context" type="text" placeholder="Optional"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-analyze" disabled>Analyze</button>
+          <button class="btn-demo" id="btn-demo">Try demo</button>
+        </div>
+      </div>
+    </aside>
+    <main class="output-panel" id="output-panel"></main>
+  </div>
+</div>
+<script>
+var SVG={
+  check:'<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>',
+  eye:'<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 010 1.798c-.45.678-1.367 1.932-2.637 3.023C11.671 13.008 9.981 14 8 14s-3.671-.992-4.933-2.078C1.797 10.831.88 9.577.43 8.899a1.62 1.62 0 010-1.798c.45-.678 1.367-1.932 2.637-3.023C4.329 2.992 6.019 2 8 2zM8 10a2 2 0 100-4 2 2 0 000 4z"/></svg>',
+  dl:'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8.5M4.5 7.5 8 11l3.5-3.5M3 13h10"/></svg>',
+  arrow:'<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg>',
+  spinner:'<div class="loader" style="width:18px;height:18px;border-width:2px"></div>'
+};
+
+var DEMO_UPDATE='Team: 4 people. Sales: Signed 2 pilot customers this week (TotalCo and BrightAI). Revenue: $0 yet, pilots are free. Users talked to: 11 (6 new, 5 existing). Biggest learning: Users don\'t want dashboards, they want alerts sent to Slack. Product: Shipped v0.3 with Slack integration. Biggest obstacle: Running low on runway, 4 months left. Need to start fundraising conversations. Morale: High after pilot wins. Goal for next week: Get 3 more pilots, start building investor list.';
+
+var $=function(s){return document.querySelector(s)};
+var outputEl=$('#output-panel'),rawEl=$('#raw-update'),nameEl=$('#startup-name'),weekEl=$('#week-of'),roleEl=$('#role-hint'),ctxEl=$('#extra-context'),btnAnalyze=$('#btn-analyze'),btnDemo=$('#btn-demo');
+var lastResult=null,lastRaw='',generatedDocs={};
+
+rawEl.addEventListener('input',function(){btnAnalyze.disabled=!rawEl.value.trim()});
+
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function modeLabel(m){return{build:'Build',automate:'Automate',delegate:'Delegate',manual:'Manual'}[m]||m||'Build'}
+function actorLabel(a){return{user:'You',agent:'Agent',external:'External'}[a]||a||''}
+
+// ---- PIPELINE ----
+function renderPipeline(steps){
+  return'<div class="pipeline">'+steps.map(function(s,i){
+    return(i>0?'<span class="pip-arrow">&#9656;</span>':'')+
+    '<div class="pip-step '+s.state+'"><span class="pip-num">'+(s.state==='done'?SVG.check:(i+1))+'</span>'+esc(s.label)+'</div>';
+  }).join('')+'</div>';
+}
+
+// ---- RENDER EMPTY ----
+function renderEmpty(){
+  outputEl.innerHTML='<div class="state-empty"><h3>No analysis yet</h3><p>Paste a weekly update and hit Analyze. The system will identify what to build, automate, or delegate \u2014 then start building it.</p></div>';
+}
+
+// ---- RENDER LOADING ----
+function renderLoading(){
+  outputEl.innerHTML='<div class="state-loading">'+SVG.spinner+'<p>Analyzing update and planning build path\u2026</p></div>';
+}
+
+// ---- RENDER ERROR ----
+function renderError(msg){
+  outputEl.innerHTML='<div class="state-error"><div class="state-error-box"><h3>Could not complete analysis</h3><p>'+esc(msg||'Something went wrong. Try again or simplify your update text.')+'</p></div></div>';
+}
+
+// ---- MAIN RENDER ----
+function renderResult(data){
+  lastResult=data;
+  var bn=data.build_now||{},lp=data.leverage_point||{},wnm=data.why_not_manual||{};
+  var task=data.current_task||{},wtdn=data.what_to_do_now||{},wcn=data.what_comes_next||{};
+  var built=data.built_or_configured_by_agent||[],prep=data.prepared_for_review||[];
+  var ad=data.analysis_details||{},arts=data.supporting_artifacts||[];
+
+  // Build pipeline steps
+  var pipSteps=[
+    {label:'Analyze',state:'done'},
+    {label:'Generate specs',state:'running'},
+    {label:'Review',state:''},
+    {label:'Execute',state:''},
+    {label:'Next cycle',state:''}
+  ];
+
+  var html='';
+
+  // 1. PIPELINE
+  html+=renderPipeline(pipSteps);
+
+  // 2. HERO
+  var mode=bn.execution_mode||'build';
+  html+='<div class="hero '+mode+'">';
+  html+='<div class="hero-overline">What to '+modeLabel(mode).toLowerCase()+' now</div>';
+  html+='<div class="hero-title">'+esc(bn.title)+'</div>';
+  html+='<div class="hero-reason">'+esc(bn.reason)+'</div>';
+  if(lp.summary) html+='<div class="hero-reason" style="margin-top:8px"><strong>Leverage:</strong> '+esc(lp.summary)+'</div>';
+  if(wnm.summary) html+='<div class="hero-reason" style="margin-top:8px"><strong>Why not manual:</strong> '+esc(wnm.summary)+'</div>';
+  html+='<div class="hero-badges"><span class="badge '+mode+'">'+modeLabel(mode)+'</span><span class="badge '+(bn.actor||'you')+'">'+actorLabel(bn.actor)+'</span></div>';
+  html+='</div>';
+
+  // 3. ACTION CARD (What to do now)
+  html+='<div class="action-card" id="action-card">';
+  html+='<h3><span class="badge you" style="font-size:.6rem">Your turn</span> '+esc(wtdn.title||'Review and proceed')+'</h3>';
+  html+='<p>'+esc(wtdn.instruction)+'</p>';
+  html+='</div>';
+
+  // 4. WHAT COMES NEXT
+  if(wcn.title){
+    html+='<div class="next-banner" id="next-banner">';
+    html+='<h4>What comes next</h4>';
+    html+='<p><strong>'+esc(wcn.title)+'</strong></p>';
+    if(wcn.instruction) html+='<p>'+esc(wcn.instruction)+'</p>';
+    html+='</div>';
+  }
+
+  // 5. AGENT WORK LOG
+  html+='<div class="sec"><div class="sec-title">'+SVG.check+' What the agent did</div>';
+  html+='<div class="sec-card"><ul class="step-log">';
+  built.forEach(function(b){
+    html+='<li class="step-item"><span class="step-icon done">'+SVG.check+'</span><div class="step-body"><h4>'+esc(b.label)+'<span class="step-tag">'+esc(b.type||'done')+'</span></h4><p>'+esc(b.description)+'</p></div></li>';
+  });
+  html+='</ul></div></div>';
+
+  // 6. PREPARED FOR REVIEW (auto-generated)
+  html+='<div class="sec" id="prep-section"><div class="sec-title">'+SVG.eye+' Prepared for your review</div>';
+  html+='<div class="sec-card"><ul class="step-log" id="prep-list">';
+  prep.forEach(function(p,i){
+    html+='<li class="step-item" id="prep-item-'+i+'"><span class="step-icon prep">'+SVG.eye+'</span><div class="step-body" style="flex:1"><h4>'+esc(p.label)+'<span class="step-tag">'+esc(p.type||'draft')+'</span></h4><p>'+esc(p.description)+'</p><div id="prep-slot-'+i+'"></div></div></li>';
+  });
+  html+='</ul></div></div>';
+
+  // 7. EXECUTION RESULTS (empty, filled after approve)
+  html+='<div id="exec-results"></div>';
+
+  // 8. ANALYSIS (collapsed)
+  html+='<div class="sec">';
+  html+='<div class="collapse-toggle" id="analysis-toggle">'+SVG.arrow+' Analysis details</div>';
+  html+='<div class="collapsed" id="analysis-body"><div class="sec-card" style="margin-top:8px">';
+  html+='<p class="sec-text" style="margin-bottom:12px">'+esc(ad.summary||'')+'</p>';
+  if(ad.signals&&ad.signals.length){html+='<p class="sec-text"><strong>Signals:</strong></p><ul style="list-style:none;margin:4px 0 12px">';ad.signals.forEach(function(s){html+='<li class="sec-text" style="padding:2px 0">\u2014 '+esc(s)+'</li>'});html+='</ul>';}
+  if(ad.bottleneck) html+='<p class="sec-text"><strong>Bottleneck:</strong> '+esc(ad.bottleneck)+'</p>';
+  if(ad.sponsor_note) html+='<p class="sec-text" style="margin-top:8px"><strong>Sponsor note:</strong> '+esc(ad.sponsor_note)+'</p>';
+  html+='</div></div></div>';
+
+  // 9. EXPORT
+  if(arts.length){
+    html+='<div class="sec"><div class="sec-title">Export</div><div class="viewer-actions">';
+    arts.forEach(function(a){html+='<button class="viewer-btn" data-export="'+esc(a.path)+'">'+SVG.dl+' '+esc(a.label)+'</button>'});
+    html+='</div></div>';
+  }
+
+  outputEl.innerHTML=html;
+  wireUI();
+
+  // AUTO-GENERATE all prepared docs immediately
+  autoGenerateDocs(prep);
+}
+
+// ---- WIRE UI ----
+function wireUI(){
+  var t=$('#analysis-toggle'),b=$('#analysis-body');
+  if(t&&b){t.addEventListener('click',function(){b.classList.toggle('collapsed');t.innerHTML=(b.classList.contains('collapsed')?SVG.arrow:SVG.arrow.replace('3.22','10.78').replace('4.28','11.72'))+' Analysis details'});}
+
+  outputEl.querySelectorAll('[data-export]').forEach(function(btn){
+    btn.addEventListener('click',function(){generateAndDownload(btn.getAttribute('data-export'),btn)});
+  });
+}
+
+// ---- AUTO-GENERATE DOCS ----
+async function autoGenerateDocs(prepItems){
+  for(var i=0;i<prepItems.length;i++){
+    var item=prepItems[i];
+    var slot=document.getElementById('prep-slot-'+i);
+    if(!slot)continue;
+    slot.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.84rem;color:var(--text-muted)">'+SVG.spinner+' Generating\u2026</div>';
+
+    // Update pipeline step
+    updatePipelineStep(1,'running');
+
+    try{
+      var ctx=buildContext();
+      var resp=await fetch('/api/generate-doc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({doc_label:item.label,doc_type:item.type||'markdown',context_summary:ctx,raw_update:lastRaw})});
+      if(!resp.ok)throw new Error('Failed');
+      var data=await resp.json();
+      generatedDocs[i]=data.content;
+
+      slot.innerHTML='<div class="viewer" style="margin-top:10px;max-height:200px">'+esc(data.content)+'</div>'+
+        '<div class="viewer-actions" style="margin-top:8px">'+
+          '<button class="viewer-btn primary" data-approve="'+i+'">Approve &amp; proceed</button>'+
+          '<button class="viewer-btn" data-download="'+i+'">'+SVG.dl+' Download</button>'+
+        '</div>';
+
+      // Wire buttons
+      slot.querySelector('[data-approve]').addEventListener('click',function(){
+        var idx=parseInt(this.getAttribute('data-approve'),10);
+        proceedFromApproval(idx);
+      });
+      slot.querySelector('[data-download]').addEventListener('click',function(){
+        var idx=parseInt(this.getAttribute('data-download'),10);
+        downloadDoc(idx);
+      });
+    }catch(e){
+      slot.innerHTML='<div style="margin-top:8px;font-size:.84rem;color:var(--addinfo)">Could not generate this document. Try re-analyzing.</div>';
+    }
+  }
+  // All docs generated
+  updatePipelineStep(1,'done');
+  updatePipelineStep(2,'active');
+}
+
+// ---- PROCEED FROM APPROVAL ----
+async function proceedFromApproval(idx){
+  if(!lastResult||!lastResult.prepared_for_review)return;
+  var item=lastResult.prepared_for_review[idx];
+  var content=generatedDocs[idx]||'';
+  var execArea=document.getElementById('exec-results');
+  if(!execArea)return;
+
+  // Disable button
+  var slot=document.getElementById('prep-slot-'+idx);
+  if(slot){var btns=slot.querySelectorAll('button');btns.forEach(function(b){b.disabled=true;b.style.opacity='.5'})}
+
+  // Update pipeline
+  updatePipelineStep(2,'done');
+  updatePipelineStep(3,'running');
+
+  // Show loading in exec area
+  execArea.innerHTML='<div class="sec"><div class="sec-title" style="color:var(--automate)">'+SVG.spinner+' Building next step\u2026</div></div>';
+
+  try{
+    var ctx=buildContext();
+    var resp=await fetch('/api/proceed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved_doc_label:item.label,approved_doc_content:content.substring(0,2000),context_summary:ctx,raw_update:lastRaw,feedback:null})});
+    if(!resp.ok)throw new Error('Failed');
+    var result=await resp.json();
+
+    // Update pipeline
+    updatePipelineStep(3,'done');
+    updatePipelineStep(4,'active');
+
+    // Render execution result prominently
+    var h='<div class="sec" style="animation:fadeUp .4s ease-out">';
+    h+='<div class="sec-title" style="color:var(--done)">'+SVG.check+' Built by agent</div>';
+    h+='<div class="sec-card" style="border-color:var(--done-border)">';
+    h+='<h4 style="font-size:1.1rem;font-weight:700;margin-bottom:8px">'+esc(result.step_title)+'</h4>';
+    h+='<p style="font-size:.9rem;color:var(--done);margin-bottom:14px;display:flex;align-items:center;gap:6px"><span class="step-icon done" style="width:20px;height:20px">'+SVG.check+'</span>'+esc(result.what_was_done)+'</p>';
+    h+='<div class="viewer" style="max-height:400px;white-space:pre-wrap;line-height:1.6">'+esc(result.step_content||'').replace(/\\n/g,'\n')+'</div>';
+    h+='<div class="viewer-actions" style="margin-top:10px"><button class="viewer-btn" id="dl-exec">'+SVG.dl+' Download</button></div>';
+    h+='</div></div>';
+
+    // Next step banner
+    if(result.next_step){
+      h+='<div class="next-banner" style="border-left-color:var(--done);animation:fadeUp .4s ease-out .1s both">';
+      h+='<h4 style="color:var(--done)">Next step</h4>';
+      h+='<p><strong>'+esc(result.next_step.title)+'</strong></p>';
+      h+='<p>'+esc(result.next_step.instruction)+'</p>';
+      h+='</div>';
+    }
+
+    execArea.innerHTML=h;
+    execArea.scrollIntoView({behavior:'smooth',block:'start'});
+
+    // Wire download
+    var dlBtn=document.getElementById('dl-exec');
+    if(dlBtn){
+      dlBtn.addEventListener('click',function(){
+        downloadBlob((result.step_title||'output').replace(/[^a-zA-Z0-9]/g,'_')+'.md',result.step_content||'');
+      });
+    }
+
+    // Update the action card and next banner at the top
+    var actionCard=document.getElementById('action-card');
+    if(actionCard&&result.next_step){
+      actionCard.innerHTML='<h3><span class="badge agent" style="font-size:.6rem">Agent done</span> '+esc(result.step_title)+'</h3><p>'+esc(result.what_was_done)+' See the output below.</p>';
+      actionCard.style.background='var(--done-bg)';actionCard.style.borderColor='var(--done-border)';
+    }
+    var nb=document.getElementById('next-banner');
+    if(nb&&result.next_step){
+      nb.innerHTML='<h4>What comes next</h4><p><strong>'+esc(result.next_step.title)+'</strong></p><p>'+esc(result.next_step.instruction)+'</p>';
+    }
+  }catch(e){
+    execArea.innerHTML='<div class="sec"><div class="sec-card" style="border-color:var(--addinfo-border)"><p style="color:var(--addinfo)">Something went wrong building this step. Click "Try demo" or re-analyze your update to try again.</p></div></div>';
+    updatePipelineStep(3,'active');
+  }
+}
+
+// ---- HELPERS ----
+function buildContext(){
+  if(!lastResult||!lastResult.analysis_details)return'';
+  var ad=lastResult.analysis_details;
+  return'Summary: '+(ad.summary||'')+'\nBottleneck: '+(ad.bottleneck||'')+'\nBuild: '+(lastResult.build_now?lastResult.build_now.title:'');
+}
+
+function updatePipelineStep(idx,state){
+  var steps=outputEl.querySelectorAll('.pip-step');
+  if(steps[idx]){
+    steps[idx].className='pip-step '+state;
+    var num=steps[idx].querySelector('.pip-num');
+    if(num)num.innerHTML=state==='done'?SVG.check:String(idx+1);
+  }
+}
+
+function downloadDoc(idx){
+  var content=generatedDocs[idx];if(!content)return;
+  var item=lastResult.prepared_for_review[idx];
+  var name=(item?item.label:'document').replace(/[^a-zA-Z0-9]/g,'_');
+  downloadBlob(name+'.md',content);
+}
+
+function downloadBlob(filename,content){
+  var blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function generateAndDownload(filename,btn){
+  if(btn.dataset.g==='1')return;btn.dataset.g='1';
+  var orig=btn.innerHTML;btn.innerHTML=SVG.dl+' Generating\u2026';btn.style.opacity='.6';
+  try{
+    var ctx=buildContext();var isJ=filename.endsWith('.json');
+    var resp=await fetch('/api/generate-doc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({doc_label:filename,doc_type:isJ?'json':'markdown',context_summary:ctx,raw_update:lastRaw})});
+    if(!resp.ok)throw new Error();
+    var data=await resp.json();
+    downloadBlob(filename,data.content);
+    btn.innerHTML=SVG.dl+' Done';setTimeout(function(){btn.innerHTML=orig;btn.style.opacity='1'},1500);
+  }catch(e){
+    btn.innerHTML=SVG.dl+' Error';setTimeout(function(){btn.innerHTML=orig;btn.style.opacity='1'},1500);
+  }
+  btn.dataset.g='0';
+}
+
+// ---- NORMALIZE OLD PAYLOADS ----
+function normalize(d){
+  if(!d.build_now&&d.next_best_action){var n=d.next_best_action;d.build_now={title:n.title,reason:n.reason_priority||n.reason||'',execution_mode:n.execution_mode||'build',actor:n.actor||'user',cta_label:n.cta_label||'Build now',action_type:n.action_type||'do'}}
+  if(!d.what_comes_next&&d.optional_next_step){d.what_comes_next={title:d.optional_next_step.title,instruction:d.optional_next_step.instruction}}
+  if(!d.built_or_configured_by_agent&&d.done_by_agent){d.built_or_configured_by_agent=d.done_by_agent.map(function(x){return{label:x.label,description:x.description,type:x.type||'doc'}})}
+  if(!d.leverage_point)d.leverage_point={summary:''};
+  if(!d.why_not_manual)d.why_not_manual={summary:''};
+  return d;
+}
+
+// ---- REAL API ----
+async function analyzeAPI(raw){
+  var resp=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({raw_update:raw,startup_name:nameEl.value.trim()||undefined,week_of:weekEl.value||undefined,role_hint:roleEl.value||undefined,extra_context:ctxEl.value.trim()||undefined})});
+  if(!resp.ok){var e=await resp.json().catch(function(){return{}});throw new Error(e.error||'Analysis failed')}
+  return resp.json();
+}
+
+// ---- DEMO DATA ----
+var DEMO_RESULT={run_id:"run_demo_001",status:"success",build_now:{title:"Build an investor outreach workflow",reason:"You have 4 months of runway and 2 signed pilots. Instead of manually assembling investor lists and writing cold emails from scratch each time, build a repeatable workflow that generates target lists, personalizes outreach, and tracks responses.",execution_mode:"build",actor:"user",cta_label:"Build now",action_type:"do"},leverage_point:{summary:"Fundraising outreach is a repeatable, structured process with high cost of delay. You will run this loop dozens of times. Building the workflow now means every iteration gets faster."},why_not_manual:{summary:"Manual fundraising prep means re-researching investors, re-drafting emails, and losing track of who replied each week. This is structured data and templated writing \u2014 exactly the work that should be a workflow, not a weekly scramble."},current_task:{title:"Investor outreach workflow spec",state:"check",state_label:"Check",description:"Review the workflow spec before the system scaffolds the automation."},what_to_do_now:{title:"Review the generated workflow spec",instruction:"Validate the target criteria, email templates, and follow-up cadence in the spec below. Mark anything that needs adjustment before the system builds the first automation slice."},what_comes_next:{title:"System scaffolds the outreach automation",instruction:"After you approve the spec, the agent will generate the investor target list, create personalized outreach drafts, and configure a follow-up tracker."},built_or_configured_by_agent:[{label:"Weekly signal analysis",description:"Parsed sales, product, morale, and obstacle data. Identified runway as the binding constraint.",type:"workflow"},{label:"Investor outreach workflow spec",description:"Defined target criteria, outreach templates, follow-up cadence, and tracking structure.",type:"workflow"},{label:"Startup brief",description:"Structured brief with momentum assessment and implementation path.",type:"doc"}],prepared_for_review:[{label:"Investor outreach workflow spec",description:"Full workflow: target criteria, email templates, follow-up rules, response tracking. Needs review before scaffolding.",type:"spec"},{label:"Investor update draft",description:"First draft framing your pilot wins and Slack pivot for investors. Not sent \u2014 needs your voice.",type:"draft"}],supporting_artifacts:[{label:"startup_brief.md",path:"startup_brief.md",type:"markdown"},{label:"portfolio_record.json",path:"portfolio_record.json",type:"json"}],analysis_details:{summary:"Early-stage B2B SaaS, 4 people. Two pilots signed. Users prefer Slack alerts over dashboards. Shipped v0.3 with Slack integration. 4 months runway, zero revenue.",signals:["2 pilots signed \u2014 early validation","11 user conversations \u2014 strong learning velocity","Slack pivot \u2014 responsive to feedback","4 months runway \u2014 fundraising window closing"],learnings:["Users want push alerts, not pull dashboards","Slack is the right channel","Free pilots need a monetization path"],momentum:"positive",momentum_label:"Positive",bottleneck:"4 months runway, zero revenue. Fundraising must start now.",sponsor_note:"Strong execution week. Slack pivot shows good instinct. Main risk is runway. System recommended building a fundraising workflow rather than giving advice."}};
+
+var isDemoRun=false;
+
+// ---- EVENTS ----
+btnAnalyze.addEventListener('click',async function(){
+  if(!rawEl.value.trim())return;
+  btnAnalyze.disabled=true;renderLoading();
+  lastRaw=rawEl.value.trim();generatedDocs={};
+  try{
+    var raw;
+    if(isDemoRun){await new Promise(function(r){setTimeout(r,600)});raw=DEMO_RESULT;isDemoRun=false}
+    else{raw=await analyzeAPI(lastRaw)}
+    renderResult(normalize(raw));
+  }catch(e){renderError(e.message)}
+  finally{btnAnalyze.disabled=!rawEl.value.trim()}
+});
+
+btnDemo.addEventListener('click',function(){
+  rawEl.value=DEMO_UPDATE;nameEl.value='SlackPulse';weekEl.value='2026-04-14';roleEl.value='founder';ctxEl.value='Pre-seed, B2B SaaS';
+  isDemoRun=true;btnAnalyze.disabled=false;btnAnalyze.click();
+});
+
+renderEmpty();
+</script>
+</body>
+</html>
